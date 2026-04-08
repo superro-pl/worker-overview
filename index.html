@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Przegląd Pracownika</title>
+    <script src="//api.bitrix24.com/api/v1/"></script>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f0f2f5;
+            font-size: 13px;
+            color: #1a1a1a;
+        }
+
+        /* ── LOADING ── */
+        #loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 200px;
+            color: #888;
+            font-size: 14px;
+            gap: 12px;
+        }
+        .spinner {
+            width: 22px; height: 22px;
+            border: 3px solid #e0e4ea;
+            border-top-color: #2d6ae0;
+            border-radius: 50%;
+            animation: spin 0.7s linear infinite;
+            flex-shrink: 0;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* ── HEADER ── */
+        .contact-header {
+            background: #fff;
+            border-radius: 10px;
+            padding: 18px 20px;
+            margin: 12px 12px 0;
+            box-shadow: 0 1px 4px rgba(0,0,0,.08);
+        }
+        .header-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 12px;
+        }
+        .contact-name {
+            font-size: 19px;
+            font-weight: 700;
+            letter-spacing: -.2px;
+        }
+        .contact-sub {
+            font-size: 12px;
+            color: #777;
+            margin-top: 2px;
+        }
+        .badge {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: .2px;
+            white-space: nowrap;
+        }
+        .badge-green  { background: #e6f4ea; color: #1e7e34; }
+        .badge-red    { background: #fce8e8; color: #c62828; }
+        .badge-blue   { background: #e8f0fe; color: #1a56db; }
+        .badge-orange { background: #fff3e0; color: #e65100; }
+        .badge-gray   { background: #f0f0f0; color: #555; }
+
+        .meta-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 18px;
+            margin-top: 14px;
+            padding-top: 14px;
+            border-top: 1px solid #f0f0f0;
+        }
+        .meta-item { display: flex; flex-direction: column; gap: 2px; min-width: 100px; }
+        .meta-label { font-size: 10px; color: #999; text-transform: uppercase; letter-spacing: .5px; }
+        .meta-value { font-size: 13px; color: #222; font-weight: 500; word-break: break-all; }
+
+        .btn {
+            border: 1px solid #dde1e8;
+            background: #fff;
+            border-radius: 6px;
+            padding: 5px 12px;
+            font-size: 12px;
+            cursor: pointer;
+            color: #444;
+            white-space: nowrap;
+            transition: background .15s;
+        }
+        .btn:hover { background: #f5f7fa; }
+        .btn-primary { background: #2d6ae0; color: #fff; border-color: #2d6ae0; }
+        .btn-primary:hover { background: #1a56c0; }
+
+        /* ── GRID ── */
+        .panels-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+            padding: 12px;
+        }
+        .panel-wide { grid-column: span 2; }
+
+        /* ── PANEL ── */
+        .panel {
+            background: #fff;
+            border-radius: 10px;
+            box-shadow: 0 1px 4px rgba(0,0,0,.08);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 11px 14px;
+            border-bottom: 1px solid #f0f0f0;
+            background: #fafbfc;
+            gap: 8px;
+        }
+        .panel-title {
+            font-weight: 600;
+            font-size: 13px;
+            color: #222;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .panel-count {
+            background: #e9ecef;
+            color: #555;
+            border-radius: 10px;
+            padding: 1px 7px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+        .panel-actions { display: flex; gap: 6px; }
+        .panel-body {
+            padding: 8px;
+            flex: 1;
+            overflow-y: auto;
+            max-height: 280px;
+        }
+        .panel-empty {
+            padding: 20px;
+            text-align: center;
+            color: #bbb;
+            font-size: 12px;
+        }
+
+        /* ── ITEM CARD ── */
+        .item-card {
+            border: 1px solid #eef0f3;
+            border-radius: 7px;
+            padding: 9px 12px;
+            margin-bottom: 6px;
+            cursor: pointer;
+            transition: border-color .15s, background .15s;
+        }
+        .item-card:hover { border-color: #2d6ae0; background: #f4f7ff; }
+        .item-card:last-child { margin-bottom: 0; }
+        .item-title {
+            font-weight: 600;
+            color: #111;
+            font-size: 12px;
+            margin-bottom: 5px;
+            line-height: 1.4;
+        }
+        .item-row {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        .item-date { font-size: 11px; color: #999; }
+        .item-assignee { font-size: 11px; color: #777; }
+        .arrow { color: #bbb; font-size: 11px; margin-left: auto; }
+
+        /* ── STAGE COLORS ── */
+        .stage-green  { background: #e6f4ea; color: #1e7e34; }
+        .stage-red    { background: #fce8e8; color: #c62828; }
+        .stage-orange { background: #fff3e0; color: #e65100; }
+        .stage-blue   { background: #e8f0fe; color: #1a56db; }
+        .stage-gray   { background: #f0f0f0; color: #666; }
+
+        /* ── ERROR ── */
+        .error-msg {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 200px;
+            color: #c62828;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+
+<div id="loading">
+    <div class="spinner"></div>
+    Ładowanie danych pracownika…
+</div>
+<div id="app" style="display:none;"></div>
+
+<script>
+'use strict';
+
+var DOMAIN = 'https://b24-n1mv3w.bitrix24.pl';
+
+var SPA = [
+    { id: 1072, name: 'Umowy',                   icon: '📄', wide: false },
+    { id: 1038, name: 'Uprawnienia do pracy',     icon: '📋', wide: false },
+    { id: 1234, name: 'Oświadczenia',             icon: '📝', wide: false },
+    { id: 1134, name: 'Sprawy administracyjne',   icon: '⚙️', wide: true  },
+    { id: 1064, name: 'BIO',                      icon: '🪪', wide: false },
+];
+
+// Fields to show prominently in the contact header
+var HEADER_FIELDS = [
+    { key: 'BIRTHDATE',       label: 'Data urodzenia' },
+    { key: 'PHONE',           label: 'Telefon',        fn: extractFirst },
+    { key: 'EMAIL',           label: 'Email',          fn: extractFirst },
+    { key: 'ASSIGNED_BY_NAME',label: 'Opiekun' },
+];
+
+// uf_ field IDs decoded from CSV export
+var UF_FIELDS = [
+    { key: 'UF_CRM_1748080303710', label: 'Obywatelstwo'         },
+    { key: 'UF_CRM_1748079264345', label: 'Nr paszportu'         },
+    { key: 'UF_CRM_1748079321782', label: 'Data wydania paszportu', fn: fmtDate },
+    { key: 'UF_CRM_1748079817713', label: 'Organ wydający'       },
+    { key: 'UF_CRM_1748080146841', label: 'Nr konta bankowego'   },
+    { key: 'UF_CRM_1748077634532', label: 'Adres w Polsce'       },
+    { key: 'UF_CRM_1748082970811', label: 'Imię ojca'            },
+    { key: 'UF_CRM_1748076721672', label: 'Imię matki'           },
+    { key: 'UF_CRM_1752763645858', label: 'PESEL'                },
+    { key: 'UF_CRM_1753955249953', label: 'Języki'               },
+];
+
+// ── HELPERS ──────────────────────────────────────────────────────────────────
+
+function esc(s) {
+    return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function fmtDate(val) {
+    if (!val) return '';
+    try {
+        var d = new Date(val);
+        return isNaN(d) ? val : d.toLocaleDateString('pl-PL');
+    } catch(e) { return val; }
+}
+
+function extractFirst(arr) {
+    if (!arr) return '';
+    if (Array.isArray(arr) && arr.length > 0) return arr[0].VALUE || '';
+    return String(arr);
+}
+
+function stageClass(stageName) {
+    if (!stageName) return 'stage-gray';
+    var n = stageName.toLowerCase();
+    if (/aktywn|powodzenie|podpisane|zaakceptowan/.test(n)) return 'stage-green';
+    if (/dezakt|nieaktywn|zwolni|przegrane/.test(n)) return 'stage-red';
+    if (/kończy|uwaga|ostrzeż/.test(n)) return 'stage-orange';
+    if (/start|nowy|oczekuje|czeka/.test(n)) return 'stage-blue';
+    return 'stage-gray';
+}
+
+function badgeClass(status) {
+    if (!status) return 'badge-gray';
+    var s = status.toLowerCase();
+    if (/aktywny|aktywna/.test(s)) return 'badge-green';
+    if (/były|zwolni|nieaktywn/.test(s)) return 'badge-red';
+    return 'badge-gray';
+}
+
+function downloadCSV(rows, filename) {
+    var csv = '\uFEFF' + rows.map(function(r) {
+        return r.map(function(c) {
+            return '"' + String(c === null || c === undefined ? '' : c).replace(/"/g, '""') + '"';
+        }).join(',');
+    }).join('\r\n');
+    var blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+}
+
+// ── RENDER ───────────────────────────────────────────────────────────────────
+
+function renderContact(c) {
+    var fullName = [c.LAST_NAME, c.NAME, c.SECOND_NAME].filter(Boolean).join(' ');
+    var status   = c['UF_CRM_1748076810426'];
+    var passportExpiry = c['UF_CRM_1748079836467'] || c['UF_CRM_1748079817713'];
+
+    var html = '<div class="contact-header">';
+    html += '<div class="header-top">';
+    html += '<div>';
+    html += '<div class="contact-name">' + esc(fullName) + '</div>';
+    if (c.POST) html += '<div class="contact-sub">' + esc(c.POST) + '</div>';
+    html += '</div>';
+    html += '<div style="display:flex;gap:6px;align-items:center;">';
+    if (status && status !== 'nie wybrano') {
+        html += '<span class="badge ' + badgeClass(status) + '">' + esc(status) + '</span>';
+    }
+    html += '<button class="btn" onclick="exportContact()">⬇ Eksportuj kontakt</button>';
+    html += '</div>';
+    html += '</div>';
+
+    // Key meta fields
+    html += '<div class="meta-grid">';
+
+    HEADER_FIELDS.forEach(function(f) {
+        var raw = c[f.key];
+        var val = f.fn ? f.fn(raw) : (raw && raw !== 'nie wybrano' ? String(raw) : '');
+        if (f.key === 'BIRTHDATE') val = fmtDate(raw);
+        if (!val) return;
+        html += '<div class="meta-item"><span class="meta-label">' + esc(f.label) + '</span><span class="meta-value">' + esc(val) + '</span></div>';
+    });
+
+    UF_FIELDS.forEach(function(f) {
+        var raw = c[f.key];
+        var val = f.fn ? f.fn(raw) : (raw && raw !== 'nie wybrano' && raw !== '' ? String(raw) : '');
+        if (!val) return;
+        html += '<div class="meta-item"><span class="meta-label">' + esc(f.label) + '</span><span class="meta-value">' + esc(val) + '</span></div>';
+    });
+
+    html += '</div></div>';
+    return html;
+}
+
+function renderPanel(spa, items) {
+    var wide = spa.wide ? ' panel-wide' : '';
+    var html = '<div class="panel' + wide + '">';
+
+    // Header
+    html += '<div class="panel-header">';
+    html += '<span class="panel-title">' + spa.icon + ' ' + esc(spa.name) + ' <span class="panel-count">' + items.length + '</span></span>';
+    html += '<div class="panel-actions">';
+    html += '<button class="btn" data-export="' + spa.id + '">⬇ CSV</button>';
+    html += '</div>';
+    html += '</div>';
+
+    // Body
+    html += '<div class="panel-body">';
+    if (items.length === 0) {
+        html += '<div class="panel-empty">Brak elementów</div>';
+    } else {
+        items.forEach(function(item) {
+            var title = item.title || ('Element #' + item.id);
+            var sc = stageClass(item.stageName || '');
+            html += '<div class="item-card" data-type="' + spa.id + '" data-id="' + item.id + '">';
+            html += '<div class="item-title">' + esc(title) + '</div>';
+            html += '<div class="item-row">';
+            if (item.stageName) {
+                html += '<span class="badge ' + sc + '">' + esc(item.stageName) + '</span>';
+            }
+            if (item.categoryName) {
+                html += '<span class="badge badge-gray">' + esc(item.categoryName) + '</span>';
+            }
+            if (item.begindate) html += '<span class="item-date">od ' + fmtDate(item.begindate) + '</span>';
+            if (item.closedate) html += '<span class="item-date">→ ' + fmtDate(item.closedate) + '</span>';
+            html += '<span class="arrow">›</span>';
+            html += '</div>';
+            if (item.assignedByName) {
+                html += '<div class="item-assignee" style="margin-top:4px;">👤 ' + esc(item.assignedByName) + '</div>';
+            }
+            html += '</div>';
+        });
+    }
+    html += '</div></div>';
+    return html;
+}
+
+// ── MAIN ─────────────────────────────────────────────────────────────────────
+
+var _contact = null;
+var _spaData = {};
+
+function init(contactId) {
+    var batch = {
+        contact: ['crm.contact.get', { id: contactId, select: ['*', 'UF_*'] }],
+    };
+
+    SPA.forEach(function(spa) {
+        batch['spa_' + spa.id] = ['crm.item.list', {
+            entityTypeId: spa.id,
+            filter: { contactId: contactId },
+            select: ['id', 'title', 'stageId', 'stageName', 'categoryName',
+                     'begindate', 'closedate', 'assignedByName', 'updatedTime'],
+            order: { updatedTime: 'DESC' },
+        }];
+    });
+
+    BX24.callBatch(batch, function(res) {
+        if (!res.contact || res.contact.error()) {
+            show('<div class="error-msg">⚠ Błąd pobierania danych kontaktu.</div>');
+            return;
+        }
+
+        _contact = res.contact.data();
+
+        SPA.forEach(function(spa) {
+            var r = res['spa_' + spa.id];
+            _spaData[spa.id] = (r && !r.error()) ? (r.data().items || []) : [];
+        });
+
+        render();
+    });
+}
+
+function render() {
+    var html = renderContact(_contact);
+    html += '<div class="panels-grid">';
+    SPA.forEach(function(spa) {
+        html += renderPanel(spa, _spaData[spa.id] || []);
+    });
+    html += '</div>';
+
+    document.getElementById('app').innerHTML = html;
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('app').style.display = 'block';
+
+    // Item click → open in Bitrix24
+    document.querySelectorAll('.item-card').forEach(function(el) {
+        el.addEventListener('click', function() {
+            var typeId = this.dataset.type;
+            var itemId = this.dataset.id;
+            BX24.openPath('/crm/type/' + typeId + '/details/' + itemId + '/');
+        });
+    });
+
+    // Export SPA CSV
+    document.querySelectorAll('[data-export]').forEach(function(btn) {
+        btn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            var typeId = parseInt(this.dataset.export);
+            var spa    = SPA.find(function(s) { return s.id === typeId; });
+            var items  = _spaData[typeId] || [];
+            if (!items.length) { alert('Brak danych do eksportu.'); return; }
+            var keys = ['id','title','stageName','categoryName','begindate','closedate','assignedByName'];
+            var rows = [keys.map(function(k) { return k; })];
+            items.forEach(function(it) {
+                rows.push(keys.map(function(k) { return it[k] != null ? it[k] : ''; }));
+            });
+            downloadCSV(rows, (spa ? spa.name : 'spa') + '_' + new Date().toISOString().slice(0,10) + '.csv');
+        });
+    });
+}
+
+// Export contact to CSV (global, called from onclick)
+window.exportContact = function() {
+    if (!_contact) return;
+    var rows = [['Pole', 'Wartość']];
+    Object.keys(_contact).forEach(function(k) {
+        var v = _contact[k];
+        if (v === null || v === undefined || v === '' || v === 'nie wybrano') return;
+        var str = typeof v === 'object' ? JSON.stringify(v) : String(v);
+        rows.push([k, str]);
+    });
+    downloadCSV(rows, 'kontakt_' + (_contact.LAST_NAME || 'export') + '_' + new Date().toISOString().slice(0,10) + '.csv');
+};
+
+function show(html) {
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('app').innerHTML = html;
+    document.getElementById('app').style.display = 'block';
+}
+
+// ── BOOT ─────────────────────────────────────────────────────────────────────
+
+BX24.init(function() {
+    // Rejestracja placement przy każdym otwarciu (idempotentna — bezpieczna)
+    BX24.callMethod('placement.bind', {
+        PLACEMENT: 'CRM_CONTACT_DETAIL_TAB',
+        HANDLER:   'https://optimum-worker-overview.netlify.app/',
+        TITLE:     'Przegląd pracownika',
+    }, function() { /* ignorujemy wynik — może już być zarejestrowane */ });
+
+    var info      = BX24.placement.info();
+    var contactId = info && info.options && info.options.ID;
+
+    // Fallback: ?contact_id=xxx (dla testów lokalnych)
+    if (!contactId) {
+        var params = new URLSearchParams(window.location.search);
+        contactId  = params.get('contact_id');
+    }
+
+    if (!contactId) {
+        // Tryb setup — aplikacja otwarta z panelu dewelopera, nie z kontaktu
+        show('<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:200px;gap:12px;">' +
+             '<div style="font-size:32px;">✅</div>' +
+             '<div style="font-size:15px;font-weight:600;color:#1e7e34;">Aplikacja zarejestrowana!</div>' +
+             '<div style="color:#666;font-size:13px;text-align:center;">Zakładka "Przegląd pracownika" pojawi się<br>w każdym kontakcie CRM.</div>' +
+             '</div>');
+        return;
+    }
+
+    init(contactId);
+});
+</script>
+</body>
+</html>
